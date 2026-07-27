@@ -33,4 +33,4 @@ jobs:
           touch state.json
           git add state.json
           git commit -m "chore: update state.json" || exit 0
-          git push
+          git push origin HEAD:main
