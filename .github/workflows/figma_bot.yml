@@ -30,7 +30,12 @@ jobs:
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          touch state.json
-          git add state.json
-          git commit -m "chore: update state.json" || exit 0
-          git push origin HEAD:main
+          
+          # Check if the file exists before trying to add and commit it
+          if [ -f state.json ]; then
+            git add state.json
+            git commit -m "chore: update state.json" || exit 0
+            git push origin HEAD:main
+          else
+            echo "state.json not found. Skipping commit."
+          fi
