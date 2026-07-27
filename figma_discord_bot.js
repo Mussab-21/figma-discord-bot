@@ -21,6 +21,26 @@ const ASSIGNEES = {
 const STATE_FILE = path.join(__dirname, 'state.json');
 
 // --- Helper Functions ---
+
+// Exponential backoff retry logic for Figma and Discord APIs
+async function fetchWithRetry(url, options = {}, retries = 3, backoff = 2000) {
+    for (let i = 0; i < retries; i++) {
+        const response = await fetch(url, options);
+        // If success or a normal error (like 404), return immediately
+        if (response.status !== 429 && response.status < 500) {
+            return response;
+        }
+        
+        const retryAfter = response.headers.get('Retry-After');
+        const waitTime = retryAfter ? parseInt(retryAfter) * 1000 : backoff;
+        
+        console.warn(`[Attempt ${i + 1}/${retries}] Rate limited or server error (${response.status}). Retrying in ${waitTime}ms...`);
+        await new Promise(resolve => setTimeout(resolve, waitTime));
+        backoff *= 2; // Exponential backoff
+    }
+    return fetch(url, options); // Final attempt
+}
+
 function loadState() {
     if (fs.existsSync(STATE_FILE)) {
         return JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'));
@@ -59,7 +79,7 @@ async function run() {
             console.log(`Checking file: ${fileKey}`);
             
             // 1. Get file data
-            const fileRes = await fetch(`https://api.figma.com/v1/files/${fileKey}`, {
+            const fileRes = await fetchWithRetry(`https://api.figma.com/v1/files/${fileKey}`, {
                 headers: { 'X-Figma-Token': FIGMA_TOKEN }
             });
             
@@ -91,7 +111,7 @@ async function run() {
                     console.log(`Found NEW ready for dev node: ${node.name} (${node.id})`);
                     
                     // 3. Get image preview
-                    const imgRes = await fetch(`https://api.figma.com/v1/images/${fileKey}?ids=${node.id}&format=png&scale=2`, {
+                    const imgRes = await fetchWithRetry(`https://api.figma.com/v1/images/${fileKey}?ids=${node.id}&format=png&scale=2`, {
                         headers: { 'X-Figma-Token': FIGMA_TOKEN }
                     });
                     
@@ -122,7 +142,7 @@ async function run() {
                     }
                     
                     // 5. Send to Discord
-                    const discordRes = await fetch(DISCORD_WEBHOOK, {
+                    const discordRes = await fetchWithRetry(DISCORD_WEBHOOK, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify(payload)
