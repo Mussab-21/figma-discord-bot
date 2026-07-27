@@ -2,14 +2,14 @@ name: Figma Discord Bot
 
 on:
   schedule:
-    - cron: '*/3 * * * *' # Runs every 3 minutes
-  workflow_dispatch: # Allows manual trigger from GitHub UI
+    - cron: '*/15 * * * *' # Runs every 15 minutes to prevent rate limits
+  workflow_dispatch:
 
 jobs:
   run-bot:
     runs-on: ubuntu-latest
     permissions:
-      contents: write # Needed to commit state.json back
+      contents: write
 
     steps:
       - name: Checkout code
@@ -27,15 +27,19 @@ jobs:
         run: node figma_discord_bot.js
 
       - name: Commit and push updated state
+        if: always() # Runs even if the previous step fails
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
           
-          # Check if the file exists before trying to add and commit it
           if [ -f state.json ]; then
             git add state.json
-            git commit -m "chore: update state.json" || exit 0
-            git push origin HEAD:main
+            if git diff --staged --quiet; then
+              echo "No changes to state.json"
+            else
+              git commit -m "chore: update state.json"
+              git push origin HEAD:main
+            fi
           else
-            echo "state.json not found. Skipping commit."
+            echo "state.json does not exist. Skipping commit."
           fi
