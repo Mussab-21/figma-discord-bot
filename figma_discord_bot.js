@@ -73,8 +73,17 @@ async function run() {
             
             // 2. Find nodes ready for dev
             const readyNodes = findReadyForDevNodes(fileData.document);
+            const readyNodeIds = readyNodes.map(n => n.id);
             
-            if (!state[fileKey]) state[fileKey] = [];
+            // Remove any nodes from state that are no longer marked "Ready for Dev"
+            // This allows designers to toggle the status off and on to trigger a new message!
+            if (state[fileKey]) {
+                state[fileKey] = state[fileKey].filter(id => readyNodeIds.includes(id));
+            } else {
+                state[fileKey] = [];
+            }
+            
+            let stateChanged = false;
             
             for (const node of readyNodes) {
                 // If we haven't notified about this node yet
@@ -123,12 +132,16 @@ async function run() {
                         console.log(`Successfully notified Discord for node ${node.id}`);
                         // Mark as notified in state
                         state[fileKey].push(node.id);
-                        saveState(state);
                     } else {
                         console.error(`Failed to notify Discord: ${discordRes.statusText}`);
                     }
                 }
             }
+            
+            // Always save state at the end of processing the file
+            // so if a node was removed from 'Ready for Dev', it gets forgotten!
+            saveState(state);
+            
         } catch (error) {
             console.error(`Error processing file ${fileKey}:`, error);
         }
